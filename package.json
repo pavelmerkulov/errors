@@ -1,0 +1,46 @@
+{
+  "name": "@pmerkulov/result-error",
+  "version": "1.0.0",
+  "description": "Type-safe error handling with neverthrow, featuring Go-style error chains (errors.Is/errors.As)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --outdir ./dist --target node && bun run build:types",
+    "build:types": "tsc",
+    "test": "bun test",
+    "prepublishOnly": "bun run build",
+    "example:basic": "bun run examples/basic.ts",
+    "example:service": "bun run examples/service-layer.ts",
+    "example:async": "bun run examples/async-operations.ts"
+  },
+  "dependencies": {
+    "neverthrow": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "neverthrow": ">=6.0.0"
+  },
+  "keywords": [
+    "error-handling",
+    "result",
+    "neverthrow",
+    "typescript",
+    "errors-is",
+    "errors-as",
+    "error-chain"
+  ],
+  "license": "MIT"
+}
