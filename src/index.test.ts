@@ -19,6 +19,8 @@ import {
   tryCatchAsync,
   wrapErr,
   wrapErrAsync,
+  isError,
+  asError,
 } from './index.ts';
 
 describe('AppError', () => {
@@ -52,10 +54,10 @@ describe('AppError', () => {
   });
 });
 
-describe('is() - errors.Is equivalent', () => {
+describe('isError() - errors.Is equivalent', () => {
   test('returns true for direct instance', () => {
     const error = new NotFoundError('User', '123');
-    expect(error.is(NotFoundError)).toBe(true);
+    expect(isError(error, NotFoundError)).toBe(true);
   });
 
   test('returns true for error in cause chain', () => {
@@ -63,22 +65,36 @@ describe('is() - errors.Is equivalent', () => {
     const notFound = new NotFoundError('User', '123', dbError);
     const wrapped = notFound.wrap('Failed to get user');
 
-    expect(wrapped.is(DatabaseError)).toBe(true);
-    expect(wrapped.is(NotFoundError)).toBe(true);
-    expect(wrapped.is(AppError)).toBe(true);
+    expect(isError(wrapped, DatabaseError)).toBe(true);
+    expect(isError(wrapped, NotFoundError)).toBe(true);
+    expect(isError(wrapped, AppError)).toBe(true);
   });
 
   test('returns false for error not in chain', () => {
     const error = new NotFoundError('User', '123');
-    expect(error.is(DatabaseError)).toBe(false);
-    expect(error.is(ValidationError)).toBe(false);
+    expect(isError(error, DatabaseError)).toBe(false);
+    expect(isError(error, ValidationError)).toBe(false);
+  });
+
+  test('works on plain Error with cause chain', () => {
+    const dbError = new DatabaseError('SELECT', 'Failed');
+    const plainError = new Error('wrapper', { cause: dbError });
+
+    expect(isError(plainError, DatabaseError)).toBe(true);
+    expect(isError(plainError, ValidationError)).toBe(false);
+  });
+
+  test('returns false for non-error values', () => {
+    expect(isError('string', NotFoundError)).toBe(false);
+    expect(isError(null, NotFoundError)).toBe(false);
+    expect(isError(42, NotFoundError)).toBe(false);
   });
 });
 
-describe('as() - errors.As equivalent', () => {
+describe('asError() - errors.As equivalent', () => {
   test('returns error for direct instance', () => {
     const error = new NotFoundError('User', '123');
-    const found = error.as(NotFoundError);
+    const found = asError(error, NotFoundError);
     expect(found).toBe(error);
     expect(found?.resource).toBe('User');
     expect(found?.id).toBe('123');
@@ -87,34 +103,28 @@ describe('as() - errors.As equivalent', () => {
   test('returns error from cause chain', () => {
     const dbError = new DatabaseError('SELECT', 'Connection failed');
     const wrapped = dbError.wrap('Failed');
-
-    const found = wrapped.as(DatabaseError);
+    const found = asError(wrapped, DatabaseError);
     expect(found).toBe(dbError);
     expect(found?.operation).toBe('SELECT');
   });
 
   test('returns undefined for error not in chain', () => {
     const error = new NotFoundError('User', '123');
-    expect(error.as(DatabaseError)).toBeUndefined();
-  });
-});
-
-describe('hasTag()', () => {
-  test('returns true for matching tag', () => {
-    const error = new NotFoundError('User', '123');
-    expect(error.hasTag('NotFoundError')).toBe(true);
+    expect(asError(error, DatabaseError)).toBeUndefined();
   });
 
-  test('returns true for tag in cause chain', () => {
+  test('works on plain Error with cause chain', () => {
     const dbError = new DatabaseError('SELECT', 'Failed');
-    const wrapped = dbError.wrap('Wrapped');
-    expect(wrapped.hasTag('DatabaseError')).toBe(true);
-    expect(wrapped.hasTag('AppError')).toBe(true);
+    const plainError = new Error('wrapper', { cause: dbError });
+
+    const found = asError(plainError, DatabaseError);
+    expect(found).toBe(dbError);
+    expect(found?.operation).toBe('SELECT');
   });
 
-  test('returns false for non-matching tag', () => {
-    const error = new NotFoundError('User', '123');
-    expect(error.hasTag('DatabaseError')).toBe(false);
+  test('returns undefined for non-error values', () => {
+    expect(asError('string', NotFoundError)).toBeUndefined();
+    expect(asError(null, NotFoundError)).toBeUndefined();
   });
 });
 
@@ -366,7 +376,7 @@ describe('wrapErr()', () => {
     expect(wrapped.isErr()).toBe(true);
     if (wrapped.isErr()) {
       expect(wrapped.error.tag).toBe('AppError');
-      expect(wrapped.error.is(DatabaseError)).toBe(true);
+      expect(isError(wrapped.error, DatabaseError)).toBe(true);
     }
   });
 

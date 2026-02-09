@@ -94,6 +94,18 @@ function findUser(id: string): Result<User, NotFoundError | DatabaseError> {
 
 // Success case
 const successResult = findUser('123');
+if (successResult.isErr()) {
+  successResult.error;
+}
+
+
+
+// if (successResult.isErr()) {
+//   console.log(successResult.error)
+// } else {
+//   console.log(successResult.value)
+// }
+
 successResult.match(
   (user) => console.log('Found user:', user.name),
   (error) => console.log('Error:', error.message),

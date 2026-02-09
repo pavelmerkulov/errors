@@ -5,8 +5,7 @@ export { err, ok, Result, ResultAsync } from 'neverthrow';
 
 /**
  * Base error class with Go-style error chaining.
- * Supports `is()` (like errors.Is) and `as()` (like errors.As).
- * Tag is automatically derived from class name.
+ * Use standalone `isError()` / `asError()` to query the cause chain.
  */
 export class AppError extends Error {
   override readonly cause?: AppError;
@@ -30,35 +29,6 @@ export class AppError extends Error {
    */
   get tag(): string {
     return this.constructor.name;
-  }
-
-  /**
-   * Check if this error or any in its cause chain is an instance of the given error class.
-   * Similar to Go's errors.Is().
-   */
-  is<E extends AppError>(errorClass: new (...args: any[]) => E): this is E {
-    if (this instanceof errorClass) return true;
-    if (this.cause) return this.cause.is(errorClass);
-    return false;
-  }
-
-  /**
-   * Find and return the first error in the chain that is an instance of the given class.
-   * Similar to Go's errors.As().
-   */
-  as<E extends AppError>(errorClass: new (...args: any[]) => E): E | undefined {
-    if (this instanceof errorClass) return this as unknown as E;
-    if (this.cause) return this.cause.as(errorClass);
-    return undefined;
-  }
-
-  /**
-   * Check if this error or any in its cause chain has the given tag (class name).
-   */
-  hasTag(tag: string): boolean {
-    if (this.tag === tag) return true;
-    if (this.cause) return this.cause.hasTag(tag);
-    return false;
   }
 
   /**
@@ -226,6 +196,38 @@ export class UnexpectedError extends AppError {
   constructor(message: string, cause?: AppError) {
     super(message, cause);
   }
+}
+
+// Standalone error chain query functions (Go-style errors.Is / errors.As)
+
+/**
+ * Check if an error or any in its cause chain is an instance of the given class.
+ * Works on any Error with a `cause` chain, not just AppError.
+ */
+export function isError<E extends AppError>(
+  error: unknown,
+  errorClass: new (...args: any[]) => E
+): boolean {
+  if (error instanceof errorClass) return true;
+  if (error instanceof Error && error.cause) {
+    return isError(error.cause, errorClass);
+  }
+  return false;
+}
+
+/**
+ * Find and return the first error in the cause chain that is an instance of the given class.
+ * Works on any Error with a `cause` chain, not just AppError.
+ */
+export function asError<E extends AppError>(
+  error: unknown,
+  errorClass: new (...args: any[]) => E
+): E | undefined {
+  if (error instanceof errorClass) return error;
+  if (error instanceof Error && error.cause) {
+    return asError(error.cause, errorClass);
+  }
+  return undefined;
 }
 
 // Utility functions
