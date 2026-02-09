@@ -13,7 +13,6 @@ import {
   TimeoutError,
   ConflictError,
   UnexpectedError,
-  createErrorClass,
   fromUnknown,
   tryCatch,
   tryCatchAsync,
@@ -28,7 +27,6 @@ describe('AppError', () => {
     const error = new AppError('Something went wrong');
     expect(error.message).toBe('Something went wrong');
     expect(error.name).toBe('AppError');
-    expect(error.tag).toBe('AppError');
   });
 
   test('creates error with cause', () => {
@@ -43,14 +41,14 @@ describe('AppError', () => {
     expect(error.stack).toContain('AppError');
   });
 
-  test('tag is derived from class name', () => {
+  test('name is derived from class name', () => {
     const appError = new AppError('test');
     const notFound = new NotFoundError('User');
     const validation = new ValidationError('email', 'invalid');
 
-    expect(appError.tag).toBe('AppError');
-    expect(notFound.tag).toBe('NotFoundError');
-    expect(validation.tag).toBe('ValidationError');
+    expect(appError.name).toBe('AppError');
+    expect(notFound.name).toBe('NotFoundError');
+    expect(validation.name).toBe('ValidationError');
   });
 });
 
@@ -134,7 +132,7 @@ describe('wrap()', () => {
     const wrapped = original.wrap('Operation failed');
 
     expect(wrapped).toBeInstanceOf(AppError);
-    expect(wrapped.tag).toBe('AppError');
+    expect(wrapped.name).toBe('AppError');
     expect(wrapped.message).toBe('Operation failed');
     expect(wrapped.cause).toBe(original);
   });
@@ -215,7 +213,6 @@ describe('toJSON()', () => {
     const error = new NotFoundError('User', '123');
     const json = error.toJSON();
 
-    expect(json.tag).toBe('NotFoundError');
     expect(json.name).toBe('NotFoundError');
     expect(json.message).toBe("User with id '123' not found");
     expect(json.stack).toBeDefined();
@@ -228,14 +225,14 @@ describe('toJSON()', () => {
 
     const json = error.toJSON();
     expect(json.cause).toBeDefined();
-    expect(json.cause?.tag).toBe('DatabaseError');
+    expect(json.cause?.name).toBe('DatabaseError');
   });
 });
 
 describe('Built-in error types', () => {
   test('NotFoundError', () => {
     const error = new NotFoundError('User', '123');
-    expect(error.tag).toBe('NotFoundError');
+    expect(error.name).toBe('NotFoundError');
     expect(error.resource).toBe('User');
     expect(error.id).toBe('123');
     expect(error.message).toBe("User with id '123' not found");
@@ -249,60 +246,47 @@ describe('Built-in error types', () => {
 
   test('ValidationError', () => {
     const error = new ValidationError('email', 'must be valid');
-    expect(error.tag).toBe('ValidationError');
+    expect(error.name).toBe('ValidationError');
     expect(error.field).toBe('email');
     expect(error.reason).toBe('must be valid');
   });
 
   test('DatabaseError', () => {
     const error = new DatabaseError('INSERT', 'Duplicate key');
-    expect(error.tag).toBe('DatabaseError');
+    expect(error.name).toBe('DatabaseError');
     expect(error.operation).toBe('INSERT');
   });
 
   test('NetworkError', () => {
     const error = new NetworkError('https://api.example.com', 503, 'Service unavailable');
-    expect(error.tag).toBe('NetworkError');
+    expect(error.name).toBe('NetworkError');
     expect(error.url).toBe('https://api.example.com');
     expect(error.statusCode).toBe(503);
   });
 
   test('PermissionError', () => {
     const error = new PermissionError('delete', 'users');
-    expect(error.tag).toBe('PermissionError');
+    expect(error.name).toBe('PermissionError');
     expect(error.action).toBe('delete');
     expect(error.resource).toBe('users');
   });
 
   test('TimeoutError', () => {
     const error = new TimeoutError('HTTP request', 5000);
-    expect(error.tag).toBe('TimeoutError');
+    expect(error.name).toBe('TimeoutError');
     expect(error.operation).toBe('HTTP request');
     expect(error.timeoutMs).toBe(5000);
   });
 
   test('ConflictError', () => {
     const error = new ConflictError('User', 'Email already exists');
-    expect(error.tag).toBe('ConflictError');
+    expect(error.name).toBe('ConflictError');
     expect(error.resource).toBe('User');
   });
 
   test('UnexpectedError', () => {
     const error = new UnexpectedError('Something went wrong');
-    expect(error.tag).toBe('UnexpectedError');
-  });
-});
-
-describe('createErrorClass()', () => {
-  test('creates custom error class with auto tag from name', () => {
-    const RateLimitError = createErrorClass('RateLimitError', (props: { retryAfter: number }) =>
-      `Rate limited. Retry after ${props.retryAfter}s`
-    );
-
-    const error = new RateLimitError({ retryAfter: 60 });
-    expect(error.tag).toBe('RateLimitError');
-    expect(error.message).toBe('Rate limited. Retry after 60s');
-    expect(error.props.retryAfter).toBe(60);
+    expect(error.name).toBe('UnexpectedError');
   });
 });
 
@@ -317,13 +301,23 @@ describe('fromUnknown()', () => {
     const error = new Error('Something failed');
     const result = fromUnknown(error);
     expect(result.message).toBe('Something failed');
-    expect(result.tag).toBe('UnexpectedError');
+    expect(result.name).toBe('UnexpectedError');
+  });
+
+  test('preserves cause chain from plain Error', () => {
+    const root = new Error('root cause');
+    const wrapper = new Error('wrapper', { cause: root });
+    const result = fromUnknown(wrapper);
+
+    expect(result.message).toBe('wrapper');
+    expect(result.cause).toBeDefined();
+    expect(result.cause!.message).toBe('root cause');
   });
 
   test('converts string to AppError', () => {
     const result = fromUnknown('string error');
     expect(result.message).toBe('string error');
-    expect(result.tag).toBe('UnexpectedError');
+    expect(result.name).toBe('UnexpectedError');
   });
 });
 
@@ -375,7 +369,7 @@ describe('wrapErr()', () => {
 
     expect(wrapped.isErr()).toBe(true);
     if (wrapped.isErr()) {
-      expect(wrapped.error.tag).toBe('AppError');
+      expect(wrapped.error.name).toBe('AppError');
       expect(isError(wrapped.error, DatabaseError)).toBe(true);
     }
   });
@@ -400,7 +394,7 @@ describe('Integration with neverthrow', () => {
     expect(errResult.isErr()).toBe(true);
 
     if (errResult.isErr()) {
-      expect(errResult.error.tag).toBe('NotFoundError');
+      expect(errResult.error.name).toBe('NotFoundError');
     }
   });
 
@@ -431,7 +425,7 @@ describe('Integration with neverthrow', () => {
 
     expect(result.isErr()).toBe(true);
     if (result.isErr()) {
-      expect(result.error.tag).toBe('ValidationError');
+      expect(result.error.name).toBe('ValidationError');
     }
   });
 });

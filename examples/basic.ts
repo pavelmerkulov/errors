@@ -1,5 +1,5 @@
 /**
- * Basic usage example demonstrating error chains, is(), as(), and stack traces.
+ * Basic usage example demonstrating error chains, isError(), asError(), and stack traces.
  */
 import {
   ok,
@@ -11,6 +11,8 @@ import {
   DatabaseError,
   fromUnknown,
   tryCatch,
+  isError,
+  asError,
 } from '../src/index.ts';
 
 // ============================================================================
@@ -21,7 +23,7 @@ console.log('=== 1. Basic Error Creation ===\n');
 
 const dbError = new DatabaseError('SELECT', 'Connection refused');
 console.log('Database error:', dbError.message);
-console.log('Tag (auto from class name):', dbError.tag);
+console.log('Name (auto from class name):', dbError.name);
 console.log('');
 
 // Wrap with context
@@ -37,9 +39,9 @@ console.log('=== 2. errors.Is() equivalent ===\n');
 
 const wrappedError = notFound.wrap('Failed to load user profile');
 
-console.log('Is NotFoundError?', wrappedError.is(NotFoundError)); // true
-console.log('Is DatabaseError?', wrappedError.is(DatabaseError)); // true
-console.log('Is ValidationError?', wrappedError.is(ValidationError)); // false
+console.log('Is NotFoundError?', isError(wrappedError, NotFoundError)); // true
+console.log('Is DatabaseError?', isError(wrappedError, DatabaseError)); // true
+console.log('Is ValidationError?', isError(wrappedError, ValidationError)); // false
 console.log('');
 
 // ============================================================================
@@ -48,21 +50,21 @@ console.log('');
 
 console.log('=== 3. errors.As() equivalent ===\n');
 
-const foundDbError = wrappedError.as(DatabaseError);
+const foundDbError = asError(wrappedError, DatabaseError);
 if (foundDbError) {
   console.log('Found DatabaseError in chain!');
   console.log('  Operation:', foundDbError.operation);
   console.log('  Message:', foundDbError.message);
 }
 
-const foundNotFound = wrappedError.as(NotFoundError);
+const foundNotFound = asError(wrappedError, NotFoundError);
 if (foundNotFound) {
   console.log('Found NotFoundError in chain!');
   console.log('  Resource:', foundNotFound.resource);
   console.log('  ID:', foundNotFound.id);
 }
 
-const foundValidation = wrappedError.as(ValidationError);
+const foundValidation = asError(wrappedError, ValidationError);
 console.log('Found ValidationError?', foundValidation !== undefined); // false
 console.log('');
 
@@ -94,33 +96,23 @@ function findUser(id: string): Result<User, NotFoundError | DatabaseError> {
 
 // Success case
 const successResult = findUser('123');
-if (successResult.isErr()) {
-  successResult.error;
-}
-
-
-
-// if (successResult.isErr()) {
-//   console.log(successResult.error)
-// } else {
-//   console.log(successResult.value)
-// }
-
 successResult.match(
   (user) => console.log('Found user:', user.name),
   (error) => console.log('Error:', error.message),
 );
 
-// Error case - use is() / as() for type checking
+// Error case - use isError() / asError() for type checking
 const errorResult = findUser('not-found');
 errorResult.match(
   (user) => console.log('Found user:', user.name),
   (error) => {
-    if (error.is(NotFoundError)) {
-      const nf = error.as(NotFoundError)!;
+    const nf = asError(error, NotFoundError);
+    if (nf) {
       console.log('User not found:', nf.resource, nf.id);
-    } else if (error.is(DatabaseError)) {
-      const db = error.as(DatabaseError)!;
+      return;
+    }
+    const db = asError(error, DatabaseError);
+    if (db) {
       console.log('Database error:', db.operation);
     }
   },
@@ -143,7 +135,7 @@ result.match(
   (value) => console.log('Result:', value),
   (error) => {
     console.log('Caught error:', error.message);
-    console.log('Tag:', error.tag);
+    console.log('Tag:', error.name);
   },
 );
 console.log('');
@@ -171,5 +163,5 @@ console.log('Root cause:', complexError.rootCause().message);
 console.log('Chain length:', complexError.chainArray().length);
 console.log('All errors in chain:');
 complexError.chainArray().forEach((e, i) => {
-  console.log(`  ${i + 1}. [${e.tag}] ${e.message}`);
+  console.log(`  ${i + 1}. [${e.name}] ${e.message}`);
 });

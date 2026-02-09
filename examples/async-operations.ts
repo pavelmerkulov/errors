@@ -10,6 +10,8 @@ import {
   NetworkError,
   DatabaseError,
   tryCatchAsync,
+  isError,
+  asError,
 } from '../src/index.ts';
 
 // ============================================================================
@@ -115,8 +117,8 @@ async function main() {
     (u) => console.log(`  Found: ${u.name}`),
     (e) => {
       console.log(`  Error chain: ${e.chain()}`);
-      if (e.is(NotFoundError)) {
-        const nf = e.as(NotFoundError)!;
+      const nf = asError(e, NotFoundError);
+      if (nf) {
         console.log(`  Resource: ${nf.resource}, ID: ${nf.id}`);
       }
     },
@@ -128,7 +130,8 @@ async function main() {
     (u) => console.log(`  Found: ${u.name}`),
     (e) => {
       console.log(`  Error: ${e.message}`);
-      if (e.is(DatabaseError)) console.log(`  Operation: ${e.as(DatabaseError)!.operation}`);
+      const db = asError(e, DatabaseError);
+      if (db) console.log(`  Operation: ${db.operation}`);
     },
   );
 
@@ -145,8 +148,8 @@ async function main() {
     (u) => console.log(`  User: ${u.name}, Bio: ${u.profile?.bio}`),
     (e) => {
       console.log(`  Error chain: ${e.chain()}`);
-      if (e.is(NetworkError)) {
-        const ne = e.as(NetworkError)!;
+      const ne = asError(e, NetworkError);
+      if (ne) {
         console.log(`  URL: ${ne.url}, Status: ${ne.statusCode}`);
       }
     },
@@ -163,7 +166,7 @@ async function main() {
   const risky = await tryCatchAsync(async () => { throw new Error('Exploded!'); });
   risky.match(
     (v) => console.log(`  Result: ${v}`),
-    (e) => console.log(`  Caught: [${e.tag}] ${e.message}`),
+    (e) => console.log(`  Caught: [${e.name}] ${e.message}`),
   );
 
   console.log('\n8. Processing user with context:');

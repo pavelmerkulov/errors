@@ -10,7 +10,8 @@ import {
   ValidationError,
   DatabaseError,
   PermissionError,
-  createErrorClass,
+  isError,
+  asError,
 } from '../src/index.ts';
 
 // ============================================================================
@@ -60,9 +61,15 @@ class PaymentFailedError extends AppError {
   }
 }
 
-const RateLimitError = createErrorClass('RateLimitError', (props: { endpoint: string; retryAfter: number }) =>
-  `Rate limited on ${props.endpoint}. Retry after ${props.retryAfter}s`
-);
+class RateLimitError extends AppError {
+  constructor(
+    public readonly endpoint: string,
+    public readonly retryAfter: number,
+    cause?: AppError
+  ) {
+    super(`Rate limited on ${endpoint}. Retry after ${retryAfter}s`, cause);
+  }
+}
 
 // ============================================================================
 // Repository layer
@@ -187,18 +194,19 @@ function handleCancelOrder(orderId: string, userId: string): ApiResponse<Order> 
     (error) => {
       console.error('Cancel order failed:', error.fullStack());
 
-      if (error.is(NotFoundError)) {
-        const nf = error.as(NotFoundError)!;
+      const nf = asError(error, NotFoundError);
+      if (nf) {
         return { success: false, error: { code: 'NOT_FOUND', message: `${nf.resource} not found`, details: { id: nf.id } } };
       }
-      if (error.is(PermissionError)) {
-        return { success: false, error: { code: 'FORBIDDEN', message: error.as(PermissionError)!.message } };
+      const perm = asError(error, PermissionError);
+      if (perm) {
+        return { success: false, error: { code: 'FORBIDDEN', message: perm.message } };
       }
-      if (error.is(ValidationError)) {
-        const v = error.as(ValidationError)!;
+      const v = asError(error, ValidationError);
+      if (v) {
         return { success: false, error: { code: 'VALIDATION_ERROR', message: v.message, details: { field: v.field } } };
       }
-      if (error.is(DatabaseError)) {
+      if (isError(error, DatabaseError)) {
         return { success: false, error: { code: 'INTERNAL_ERROR', message: 'A database error occurred' } };
       }
       return { success: false, error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred' } };
@@ -233,17 +241,17 @@ console.log('\n=== Custom Domain Errors ===\n');
 const paymentResult = err(new PaymentFailedError('Card declined', 'CARD_DECLINED'));
 paymentResult.match(
   () => console.log('Payment successful'),
-  (e) => console.log(`Payment error: ${e.reason} (code: ${e.code}), tag: ${e.tag}`),
+  (e) => console.log(`Payment error: ${e.reason} (code: ${e.code}), name: ${e.name}`),
 );
 
 const stockResult = err(new InsufficientStockError('prod-123', 5, 2));
 stockResult.match(
   () => console.log('Stock OK'),
-  (e) => console.log(`Stock error: need ${e.requested}, have ${e.available}, tag: ${e.tag}`),
+  (e) => console.log(`Stock error: need ${e.requested}, have ${e.available}, name: ${e.name}`),
 );
 
-const rateLimitResult = err(new RateLimitError({ endpoint: '/api/orders', retryAfter: 60 }));
+const rateLimitResult = err(new RateLimitError('/api/orders', 60));
 rateLimitResult.match(
   () => {},
-  (e) => console.log(`Rate limit: ${e.message}, tag: ${e.tag}`),
+  (e) => console.log(`Rate limit: ${e.message}, name: ${e.name}`),
 );

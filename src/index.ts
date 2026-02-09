@@ -25,13 +25,6 @@ export class AppError extends Error {
   }
 
   /**
-   * Get the tag (class name) for this error.
-   */
-  get tag(): string {
-    return this.constructor.name;
-  }
-
-  /**
    * Wrap this error with additional context.
    * Returns a new AppError with this error as the cause.
    */
@@ -43,10 +36,10 @@ export class AppError extends Error {
    * Get a simple chain of error messages.
    */
   chain(): string {
-    const messages: string[] = [`[${this.tag}] ${this.message}`];
+    const messages: string[] = [`[${this.name}] ${this.message}`];
     let current: AppError | undefined = this.cause;
     while (current) {
-      messages.push(`[${current.tag}] ${current.message}`);
+      messages.push(`[${current.name}] ${current.message}`);
       current = current.cause;
     }
     return messages.join(' -> ');
@@ -63,7 +56,7 @@ export class AppError extends Error {
 
     while (current) {
       const prefix = depth === 0 ? '' : '\nCaused by: ';
-      stacks.push(`${prefix}[${current.tag}] ${current.stack}`);
+      stacks.push(`${prefix}[${current.name}] ${current.stack}`);
       current = current.cause;
       depth++;
     }
@@ -100,7 +93,6 @@ export class AppError extends Error {
    */
   toJSON(): ErrorJSON {
     return {
-      tag: this.tag,
       name: this.name,
       message: this.message,
       stack: this.stack,
@@ -110,7 +102,6 @@ export class AppError extends Error {
 }
 
 export interface ErrorJSON {
-  tag: string;
   name: string;
   message: string;
   stack?: string;
@@ -233,22 +224,6 @@ export function asError<E extends AppError>(
 // Utility functions
 
 /**
- * Create a custom error class with a message factory.
- */
-export function createErrorClass<Props extends Record<string, unknown> = {}>(
-  name: string,
-  messageFactory: (props: Props) => string
-) {
-  const CustomError = class extends AppError {
-    constructor(public readonly props: Props, cause?: AppError) {
-      super(messageFactory(props), cause);
-    }
-  };
-  Object.defineProperty(CustomError, 'name', { value: name });
-  return CustomError;
-}
-
-/**
  * Wrap an unknown error (from try/catch) into an AppError.
  */
 export function fromUnknown(error: unknown): AppError {
@@ -256,7 +231,8 @@ export function fromUnknown(error: unknown): AppError {
     return error;
   }
   if (error instanceof Error) {
-    const appError = new UnexpectedError(error.message);
+    const cause = error.cause ? fromUnknown(error.cause) : undefined;
+    const appError = new UnexpectedError(error.message, cause);
     appError.stack = error.stack;
     return appError;
   }
